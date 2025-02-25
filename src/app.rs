@@ -60,9 +60,10 @@ impl eframe::App for TemplateApp {
 
     /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        // Put your widgets into a `SidePanel`, `TopBottomPanel`, `CentralPanel`, `Window` or `Area`.
-        // For inspiration and more examples, go to https://emilk.github.io/egui
-        //ctx.set_fonts(font_definitions);
+        // Listen for the N key press to show the input field.
+        if ctx.input(|i| i.key_pressed(egui::Key::A)) {
+            self.show_input_field = true;
+        }
 
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             // The top panel is often a good place for a menu bar:
@@ -172,28 +173,13 @@ impl eframe::App for TemplateApp {
                 }
             }
         });
-        /*
-           egui::CentralPanel::default().show(ctx, |ui| {
-               let (response, painter) =
-                   ui.allocate_painter(egui::Vec2::new(200.0, 200.0), egui::Sense::hover());
 
-               let radius = 20.0;
-               let spacing = 50.0;
-               let center_x = response.rect.center().x;
-               let center_y = response.rect.center().y;
-
-               for i in 0..3 {
-                   let x = center_x + (i as f32 - 1.0) * spacing;
-                   let y = center_y;
-                   painter.add(Shape::Circle(CircleShape {
-                       center: egui::Pos2::new(x, y),
-                       radius,
-                       fill: egui::Color32::WHITE,
-                       stroke: egui::Stroke::new(1.0, egui::Color32::BLACK),
-                   }));
-               }
-           });
-        */
+        // Optionally, if you want to draw the input field when show_input_field is true:
+        if self.show_input_field {
+            egui::Window::new("Input").show(ctx, |ui| {
+                ui.text_edit_singleline(&mut self.input_field_text);
+            });
+        }
     }
 }
 
