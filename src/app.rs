@@ -18,6 +18,9 @@ pub struct TemplateApp {
 
     #[serde(skip)]
     estimate_app: EstimateApp,
+
+    show_input_field: bool,
+    input_field_text: String,
 }
 
 impl Default for TemplateApp {
@@ -27,6 +30,8 @@ impl Default for TemplateApp {
             label: "Hello World!".to_owned(),
             value: 2.7,
             estimate_app: EstimateApp::new(),
+            show_input_field: false,
+            input_field_text: "Type something here...".to_owned(),
         }
     }
 }
@@ -114,7 +119,56 @@ impl eframe::App for TemplateApp {
                     }
                     placed_positions.push(adjusted_pos);
                     let pos = adjusted_pos;
-                    self.draw_task(ui, task, pos, radii);
+                    let rect = egui::Rect::from_center_size(pos, radii * 2.0);
+
+                    // Handle click event: toggle the task.selected property.
+                    let response =
+                        ui.interact(rect, egui::Id::new(task.name.clone()), egui::Sense::click());
+                    if response.clicked() {
+                        task.selected = !task.selected;
+                    }
+
+                    let painter = ui.painter();
+
+                    // Draw the rectangle with a black stroke.
+                    painter.rect(
+                        rect,
+                        0.0,
+                        egui::Color32::WHITE,
+                        egui::Stroke::new(2.0, egui::Color32::BLACK),
+                    );
+
+                    // If the task is selected, add a blue outline.
+                    if task.selected {
+                        painter.rect(
+                            rect,
+                            0.0,
+                            egui::Color32::TRANSPARENT,
+                            egui::Stroke::new(5.0, egui::Color32::BLUE),
+                        );
+                    }
+
+                    // Draw the task name centered inside the rectangle.
+                    painter.text(
+                        rect.center(),
+                        egui::Align2::CENTER_CENTER,
+                        format!("{}", task.name),
+                        egui::FontId::proportional(16.0),
+                        egui::Color32::BLACK,
+                    );
+
+                    // Draw a line from the rectangle center to the center of the UI.
+                    let ui_center = painter.clip_rect().center();
+                    let from_y = if rect.top() < ui_center.y {
+                        rect.bottom()
+                    } else {
+                        rect.top()
+                    };
+
+                    painter.line_segment(
+                        [egui::pos2(rect.center().x, from_y), ui_center],
+                        egui::Stroke::new(1.5, egui::Color32::DARK_GRAY),
+                    );
                 }
             }
         });
