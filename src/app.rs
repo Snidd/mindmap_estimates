@@ -66,6 +66,60 @@ impl eframe::App for TemplateApp {
             self.show_input_field = true;
             self.input_field_text = "".to_owned();
         }
+        if ctx.input(|i| i.key_pressed(egui::Key::A)) && !self.show_input_field {
+            if self.selected_task_id.is_none() && self.estimate_app.tasks.len() > 0 {
+                self.selected_task_id = Some(self.estimate_app.tasks[0].id.clone());
+            } else {
+                if self.estimate_app.tasks.len() > 1 {
+                    if let Some(selected_task_id) = &self.selected_task_id {
+                        if let Some(current_index) = self
+                            .estimate_app
+                            .tasks
+                            .iter()
+                            .position(|task| task.id == *selected_task_id)
+                        {
+                            let tasks_len = self.estimate_app.tasks.len();
+                            // Cycle through the tasks starting from the next index
+                            for offset in 1..tasks_len {
+                                let next_index = (current_index + offset) % tasks_len;
+                                if self.estimate_app.tasks[next_index].id != *selected_task_id {
+                                    self.selected_task_id =
+                                        Some(self.estimate_app.tasks[next_index].id.clone());
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if ctx.input(|i| i.key_pressed(egui::Key::D)) && !self.show_input_field {
+            if self.selected_task_id.is_none() && self.estimate_app.tasks.len() > 0 {
+                self.selected_task_id = Some(self.estimate_app.tasks[0].id.clone());
+            } else {
+                if self.estimate_app.tasks.len() > 1 {
+                    if let Some(selected_task_id) = &self.selected_task_id {
+                        if let Some(current_index) = self
+                            .estimate_app
+                            .tasks
+                            .iter()
+                            .position(|task| task.id == *selected_task_id)
+                        {
+                            let tasks_len = self.estimate_app.tasks.len();
+                            // Cycle through the tasks in reverse starting from the next index
+                            for offset in 1..tasks_len {
+                                let next_index = (current_index + tasks_len - offset) % tasks_len;
+                                if self.estimate_app.tasks[next_index].id != *selected_task_id {
+                                    self.selected_task_id =
+                                        Some(self.estimate_app.tasks[next_index].id.clone());
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
         if ctx.input(|i| i.key_pressed(egui::Key::Enter)) && self.show_input_field {
             self.input_field_value = self.input_field_text.clone();
             self.show_input_field = false;
