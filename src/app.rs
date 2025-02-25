@@ -202,7 +202,7 @@ impl eframe::App for TemplateApp {
                         // Compute the base angle so that the half-circle faces away from the UI center.
                         let base_angle = (pos - ui_center).angle();
                         let arc_span = std::f32::consts::PI; // 180°
-                        let distance_from_parent = 150.0; // Adjust as needed for spacing.
+                        let distance_from_parent = 200.0; // Adjust as needed for spacing.
                         for (j, child) in task.children.iter_mut().enumerate() {
                             // Calculate the angle for each child along the half circle.
                             let fraction = if num_children > 1 {
