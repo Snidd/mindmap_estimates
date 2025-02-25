@@ -1,6 +1,3 @@
-use egui::epaint::CircleShape;
-use egui::epaint::Shape;
-use egui::Context;
 use egui::Pos2;
 
 use crate::EstimateApp;
@@ -19,8 +16,11 @@ pub struct TemplateApp {
     #[serde(skip)]
     estimate_app: EstimateApp,
 
+    selected_task_id: Option<String>,
+
     show_input_field: bool,
     input_field_text: String,
+    input_field_value: String,
 }
 
 impl Default for TemplateApp {
@@ -31,7 +31,9 @@ impl Default for TemplateApp {
             value: 2.7,
             estimate_app: EstimateApp::new(),
             show_input_field: false,
+            selected_task_id: None,
             input_field_text: "Type something here...".to_owned(),
+            input_field_value: "".to_owned(),
         }
     }
 }
@@ -61,8 +63,25 @@ impl eframe::App for TemplateApp {
     /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // Listen for the N key press to show the input field.
-        if ctx.input(|i| i.key_pressed(egui::Key::A)) {
+        if ctx.input(|i| i.key_pressed(egui::Key::A)) && !self.show_input_field {
             self.show_input_field = true;
+            self.input_field_text = "".to_owned();
+        }
+        if ctx.input(|i| i.key_pressed(egui::Key::Enter)) && self.show_input_field {
+            self.input_field_value = self.input_field_text.clone();
+            self.show_input_field = false;
+
+            if let Some(selected_task_id) = &self.selected_task_id {
+                let selected_task = self
+                    .estimate_app
+                    .tasks
+                    .iter_mut()
+                    .find(|task| task.id == *selected_task_id)
+                    .unwrap();
+                selected_task.add_child_task(&self.input_field_value, 0);
+            } else {
+                self.estimate_app.add_task(&self.input_field_text);
+            }
         }
 
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
@@ -87,7 +106,7 @@ impl eframe::App for TemplateApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             let (response, _painter) = ui.allocate_painter(
                 egui::Vec2::new(ui.available_width(), ui.available_height()),
-                egui::Sense::hover(),
+                egui::Sense::click(),
             );
 
             let mut placed_positions: Vec<Pos2> = Vec::new();
@@ -126,7 +145,7 @@ impl eframe::App for TemplateApp {
                     let response =
                         ui.interact(rect, egui::Id::new(task.name.clone()), egui::Sense::click());
                     if response.clicked() {
-                        task.selected = !task.selected;
+                        self.selected_task_id = Some(task.id.clone());
                     }
 
                     let painter = ui.painter();
@@ -140,7 +159,7 @@ impl eframe::App for TemplateApp {
                     );
 
                     // If the task is selected, add a blue outline.
-                    if task.selected {
+                    if self.selected_task_id == Some(task.id.clone()) {
                         painter.rect(
                             rect,
                             0.0,
@@ -176,8 +195,13 @@ impl eframe::App for TemplateApp {
 
         // Optionally, if you want to draw the input field when show_input_field is true:
         if self.show_input_field {
-            egui::Window::new("Input").show(ctx, |ui| {
-                ui.text_edit_singleline(&mut self.input_field_text);
+            egui::Window::new("New Task").show(ctx, |ui| {
+                ui.text_edit_singleline(&mut self.input_field_text)
+                    .request_focus();
+                if ui.button("Submit").clicked() {
+                    self.input_field_value = self.input_field_text.clone();
+                    self.show_input_field = false;
+                }
             });
         }
     }
@@ -206,7 +230,7 @@ impl TemplateApp {
         // Handle click event: toggle the task.selected property.
         let response = ui.interact(rect, egui::Id::new(task.name.clone()), egui::Sense::click());
         if response.clicked() {
-            task.selected = !task.selected;
+            //task.selected = !task.selected;
         }
 
         let painter = ui.painter();
@@ -220,14 +244,14 @@ impl TemplateApp {
         );
 
         // If the task is selected, add a blue outline.
-        if task.selected {
+        /*if task.selected {
             painter.rect(
                 rect,
                 0.0,
                 egui::Color32::TRANSPARENT,
                 egui::Stroke::new(5.0, egui::Color32::BLUE),
             );
-        }
+        }*/
 
         // Draw the task name centered inside the rectangle.
         painter.text(
