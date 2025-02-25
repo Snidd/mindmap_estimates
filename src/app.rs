@@ -1,7 +1,6 @@
 use egui::Pos2;
 
 use crate::EstimateApp;
-use crate::Task;
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -185,15 +184,16 @@ impl eframe::App for TemplateApp {
                     );
                     // Draw a line from the parent's rectangle center to the UI center.
                     let ui_center = painter.clip_rect().center();
-                    let from_y = if rect.top() < ui_center.y {
+                    let _from_y = if rect.top() < ui_center.y {
                         rect.bottom()
                     } else {
                         rect.top()
                     };
+                    /*
                     painter.line_segment(
                         [egui::pos2(rect.center().x, from_y), ui_center],
                         egui::Stroke::new(1.5, egui::Color32::DARK_GRAY),
-                    );
+                    ); */
 
                     // --- NEW SUB-LOOP: Draw children of the task ---
                     // Position children in a half circle away from the UI center.
@@ -252,9 +252,54 @@ impl eframe::App for TemplateApp {
                                 egui::FontId::proportional(16.0),
                                 egui::Color32::BLACK,
                             );
-                            // Draw a line from the child rectangle center to the parent's rectangle center.
+                            // --- New line drawing between closest edges ---
+                            // Compute centers.
+                            let parent_center = rect.center();
+                            let child_center = child_rect.center();
+                            // Compute the normalized direction vector from parent to child.
+                            let dir = child_center - parent_center;
+
+                            // Calculate intersection point on parent's rectangle edge.
+                            let parent_half = egui::vec2(rect.width() / 2.0, rect.height() / 2.0);
+                            let scale_parent = f32::max(
+                                parent_half.x
+                                    / if dir.x.abs() < f32::EPSILON {
+                                        f32::INFINITY
+                                    } else {
+                                        dir.x.abs()
+                                    },
+                                parent_half.y
+                                    / if dir.y.abs() < f32::EPSILON {
+                                        f32::INFINITY
+                                    } else {
+                                        dir.y.abs()
+                                    },
+                            );
+                            let parent_edge = parent_center + dir * scale_parent;
+
+                            // Calculate intersection point on child's rectangle edge.
+                            let rev_dir = -dir;
+                            let child_half =
+                                egui::vec2(child_rect.width() / 2.0, child_rect.height() / 2.0);
+                            let scale_child = f32::max(
+                                child_half.x
+                                    / if rev_dir.x.abs() < f32::EPSILON {
+                                        f32::INFINITY
+                                    } else {
+                                        rev_dir.x.abs()
+                                    },
+                                child_half.y
+                                    / if rev_dir.y.abs() < f32::EPSILON {
+                                        f32::INFINITY
+                                    } else {
+                                        rev_dir.y.abs()
+                                    },
+                            );
+                            let child_edge = child_center + rev_dir * scale_child;
+
+                            // Draw a line from the parent's edge to the child's edge.
                             painter.line_segment(
-                                [child_rect.center(), rect.center()],
+                                [parent_edge, child_edge],
                                 egui::Stroke::new(1.5, egui::Color32::DARK_GRAY),
                             );
                         }
