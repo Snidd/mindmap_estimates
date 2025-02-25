@@ -63,7 +63,7 @@ impl eframe::App for TemplateApp {
     /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // Listen for the N key press to show the input field.
-        if ctx.input(|i| i.key_pressed(egui::Key::A)) && !self.show_input_field {
+        if ctx.input(|i| i.key_pressed(egui::Key::N)) && !self.show_input_field {
             self.show_input_field = true;
             self.input_field_text = "".to_owned();
         }
@@ -71,14 +71,19 @@ impl eframe::App for TemplateApp {
             self.input_field_value = self.input_field_text.clone();
             self.show_input_field = false;
 
-            if let Some(selected_task_id) = &self.selected_task_id {
-                let selected_task = self
-                    .estimate_app
-                    .tasks
-                    .iter_mut()
-                    .find(|task| task.id == *selected_task_id)
-                    .unwrap();
-                selected_task.add_child_task(&self.input_field_value, 0);
+            if !self.selected_task_id.is_none() {
+                if let Some(selected_task_id) = &self.selected_task_id {
+                    let selected_task = self
+                        .estimate_app
+                        .tasks
+                        .iter_mut()
+                        .find(|task| task.id == *selected_task_id);
+                    if let Some(selected_task) = selected_task {
+                        selected_task.add_child_task(&self.input_field_value, 0);
+                    } else {
+                        self.estimate_app.add_task(&self.input_field_text);
+                    }
+                }
             } else {
                 self.estimate_app.add_task(&self.input_field_text);
             }
@@ -91,7 +96,7 @@ impl eframe::App for TemplateApp {
                 // NOTE: no File->Quit on web pages!
                 let is_web = cfg!(target_arch = "wasm32");
                 if !is_web {
-                    ui.menu_button("File", |ui| {
+                    ui.menu_button(format!("File-{:?}", self.selected_task_id), |ui| {
                         if ui.button("Quit").clicked() {
                             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                         }
@@ -108,6 +113,10 @@ impl eframe::App for TemplateApp {
                 egui::Vec2::new(ui.available_width(), ui.available_height()),
                 egui::Sense::click(),
             );
+
+            if response.clicked() {
+                self.selected_task_id = None;
+            }
 
             let mut placed_positions: Vec<Pos2> = Vec::new();
             // Ensure that you get mutable access to tasks (assuming get_tasks_mut() exists).
@@ -150,15 +159,14 @@ impl eframe::App for TemplateApp {
 
                     let painter = ui.painter();
 
-                    // Draw the rectangle with a black stroke.
+                    // Draw the parent rectangle.
                     painter.rect(
                         rect,
                         0.0,
                         egui::Color32::WHITE,
                         egui::Stroke::new(2.0, egui::Color32::BLACK),
                     );
-
-                    // If the task is selected, add a blue outline.
+                    // If the parent task is selected, add a blue outline.
                     if self.selected_task_id == Some(task.id.clone()) {
                         painter.rect(
                             rect,
@@ -167,8 +175,7 @@ impl eframe::App for TemplateApp {
                             egui::Stroke::new(5.0, egui::Color32::BLUE),
                         );
                     }
-
-                    // Draw the task name centered inside the rectangle.
+                    // Draw the task name.
                     painter.text(
                         rect.center(),
                         egui::Align2::CENTER_CENTER,
@@ -176,19 +183,82 @@ impl eframe::App for TemplateApp {
                         egui::FontId::proportional(16.0),
                         egui::Color32::BLACK,
                     );
-
-                    // Draw a line from the rectangle center to the center of the UI.
+                    // Draw a line from the parent's rectangle center to the UI center.
                     let ui_center = painter.clip_rect().center();
                     let from_y = if rect.top() < ui_center.y {
                         rect.bottom()
                     } else {
                         rect.top()
                     };
-
                     painter.line_segment(
                         [egui::pos2(rect.center().x, from_y), ui_center],
                         egui::Stroke::new(1.5, egui::Color32::DARK_GRAY),
                     );
+
+                    // --- NEW SUB-LOOP: Draw children of the task ---
+                    // Position children in a half circle away from the UI center.
+                    if !task.children.is_empty() {
+                        let num_children = task.children.len();
+                        // Compute the base angle so that the half-circle faces away from the UI center.
+                        let base_angle = (pos - ui_center).angle();
+                        let arc_span = std::f32::consts::PI; // 180°
+                        let distance_from_parent = 150.0; // Adjust as needed for spacing.
+                        for (j, child) in task.children.iter_mut().enumerate() {
+                            // Calculate the angle for each child along the half circle.
+                            let fraction = if num_children > 1 {
+                                j as f32 / (num_children - 1) as f32
+                            } else {
+                                0.5
+                            };
+                            let child_angle = base_angle - (arc_span / 2.0) + fraction * arc_span;
+                            // Position the child at an offset from the parent's center.
+                            let child_pos = egui::pos2(
+                                pos.x + distance_from_parent * child_angle.cos(),
+                                pos.y + distance_from_parent * child_angle.sin(),
+                            );
+                            let child_rect = egui::Rect::from_center_size(child_pos, radii * 2.0);
+
+                            // Optionally add a click handler for children (similar to parent tasks):
+                            let child_response = ui.interact(
+                                child_rect,
+                                egui::Id::new(child.name.clone()),
+                                egui::Sense::click(),
+                            );
+                            if child_response.clicked() {
+                                self.selected_task_id = Some(child.id.clone());
+                            }
+
+                            // Draw the child rectangle.
+                            painter.rect(
+                                child_rect,
+                                0.0,
+                                egui::Color32::WHITE,
+                                egui::Stroke::new(2.0, egui::Color32::BLACK),
+                            );
+                            // Draw blue outline if the child is selected.
+                            if self.selected_task_id == Some(child.id.clone()) {
+                                painter.rect(
+                                    child_rect,
+                                    0.0,
+                                    egui::Color32::TRANSPARENT,
+                                    egui::Stroke::new(5.0, egui::Color32::BLUE),
+                                );
+                            }
+                            // Draw the child task name.
+                            painter.text(
+                                child_rect.center(),
+                                egui::Align2::CENTER_CENTER,
+                                format!("{}", child.name),
+                                egui::FontId::proportional(16.0),
+                                egui::Color32::BLACK,
+                            );
+                            // Draw a line from the child rectangle center to the parent's rectangle center.
+                            painter.line_segment(
+                                [child_rect.center(), rect.center()],
+                                egui::Stroke::new(1.5, egui::Color32::DARK_GRAY),
+                            );
+                        }
+                    }
                 }
             }
         });
@@ -204,75 +274,5 @@ impl eframe::App for TemplateApp {
                 }
             });
         }
-    }
-}
-
-impl TemplateApp {
-    /// Draws a rectangle with the task name centered inside,
-    /// draws a blue outline if the task is selected,
-    /// toggles task.selected on click,
-    /// and draws a line from the rectangle center to the UI center.
-    ///
-    /// - ui: The egui UI handle used for drawing and interaction.
-    /// - task: The mutable task containing the name and selection state.
-    /// - center: The center point of the rectangle.
-    /// - radii: Half of the rectangle's width and height.
-    pub fn draw_task(
-        &mut self,
-        ui: &mut egui::Ui,
-        task: &mut Task,
-        center: Pos2,
-        radii: egui::Vec2,
-    ) {
-        // Create a rectangle centered on `center` with size (radii * 2).
-        let rect = egui::Rect::from_center_size(center, radii * 2.0);
-
-        // Handle click event: toggle the task.selected property.
-        let response = ui.interact(rect, egui::Id::new(task.name.clone()), egui::Sense::click());
-        if response.clicked() {
-            //task.selected = !task.selected;
-        }
-
-        let painter = ui.painter();
-
-        // Draw the rectangle with a black stroke.
-        painter.rect(
-            rect,
-            0.0,
-            egui::Color32::WHITE,
-            egui::Stroke::new(2.0, egui::Color32::BLACK),
-        );
-
-        // If the task is selected, add a blue outline.
-        /*if task.selected {
-            painter.rect(
-                rect,
-                0.0,
-                egui::Color32::TRANSPARENT,
-                egui::Stroke::new(5.0, egui::Color32::BLUE),
-            );
-        }*/
-
-        // Draw the task name centered inside the rectangle.
-        painter.text(
-            rect.center(),
-            egui::Align2::CENTER_CENTER,
-            format!("{}", task.name),
-            egui::FontId::proportional(16.0),
-            egui::Color32::BLACK,
-        );
-
-        // Draw a line from the rectangle center to the center of the UI.
-        let ui_center = painter.clip_rect().center();
-        let from_y = if rect.top() < ui_center.y {
-            rect.bottom()
-        } else {
-            rect.top()
-        };
-
-        painter.line_segment(
-            [egui::pos2(rect.center().x, from_y), ui_center],
-            egui::Stroke::new(1.5, egui::Color32::DARK_GRAY),
-        );
     }
 }
