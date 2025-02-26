@@ -1,6 +1,6 @@
 use egui::Pos2;
 
-use crate::EstimateApp;
+use crate::{draw_task_with_children, EstimateApp};
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -65,6 +65,12 @@ impl eframe::App for TemplateApp {
         if ctx.input(|i| i.key_pressed(egui::Key::N)) && !self.show_input_field {
             self.show_input_field = true;
             self.input_field_text = "".to_owned();
+        }
+        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) && !self.show_input_field {
+            self.selected_task_id = None;
+        }
+        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) && self.show_input_field {
+            self.show_input_field = false;
         }
         if ctx.input(|i| i.key_pressed(egui::Key::A)) && !self.show_input_field {
             if self.selected_task_id.is_none() && self.estimate_app.tasks.len() > 0 {
@@ -162,7 +168,7 @@ impl eframe::App for TemplateApp {
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            let (response, _painter) = ui.allocate_painter(
+            let (response, painter) = ui.allocate_painter(
                 egui::Vec2::new(ui.available_width(), ui.available_height()),
                 egui::Sense::click(),
             );
@@ -178,14 +184,16 @@ impl eframe::App for TemplateApp {
             if num_tasks > 0 {
                 let center = response.rect.center();
                 let radius = response.rect.width().min(response.rect.height()) * 0.3;
+                let radii = egui::vec2(75.0, 25.0);
+
                 for (i, task) in tasks.iter_mut().enumerate() {
                     let angle = i as f32 / num_tasks as f32 * std::f32::consts::TAU;
-                    let pos = egui::pos2(
+                    let pos = Pos2::new(
                         center.x + radius * angle.cos(),
                         center.y + radius * angle.sin(),
                     );
-                    let radii = egui::vec2(75.0, 25.0);
 
+                    // Adjust position to avoid overlap.
                     let mut current_radius = radius;
                     let mut adjusted_pos = pos;
                     let safe_distance = (75.0_f32.powi(2) + 25.0_f32.powi(2)).sqrt() * 2.0;
@@ -194,170 +202,26 @@ impl eframe::App for TemplateApp {
                         .any(|&p| p.distance(adjusted_pos) < safe_distance)
                     {
                         current_radius += 10.0;
-                        adjusted_pos = egui::pos2(
+                        adjusted_pos = Pos2::new(
                             center.x + current_radius * angle.cos(),
                             center.y + current_radius * angle.sin(),
                         );
                     }
                     placed_positions.push(adjusted_pos);
-                    let pos = adjusted_pos;
-                    let rect = egui::Rect::from_center_size(pos, radii * 2.0);
 
-                    // Handle click event: toggle the task.selected property.
-                    let response =
-                        ui.interact(rect, egui::Id::new(task.name.clone()), egui::Sense::click());
-                    if response.clicked() {
-                        self.selected_task_id = Some(task.id.clone());
-                    }
+                    // Determine if the task is selected.
+                    let is_selected = self.selected_task_id == Some(task.id.clone());
 
-                    let painter = ui.painter();
-
-                    // Draw the parent rectangle.
-                    painter.rect(
-                        rect,
-                        0.0,
-                        egui::Color32::WHITE,
-                        egui::Stroke::new(2.0, egui::Color32::BLACK),
+                    // Draw the task and its children.
+                    draw_task_with_children(
+                        ui,
+                        &painter,
+                        task,
+                        adjusted_pos,
+                        radii,
+                        painter.clip_rect().center(),
+                        is_selected,
                     );
-                    // If the parent task is selected, add a blue outline.
-                    if self.selected_task_id == Some(task.id.clone()) {
-                        painter.rect(
-                            rect,
-                            0.0,
-                            egui::Color32::TRANSPARENT,
-                            egui::Stroke::new(5.0, egui::Color32::BLUE),
-                        );
-                    }
-                    // Draw the task name.
-                    painter.text(
-                        rect.center(),
-                        egui::Align2::CENTER_CENTER,
-                        format!("{}", task.name),
-                        egui::FontId::proportional(16.0),
-                        egui::Color32::BLACK,
-                    );
-                    // Draw a line from the parent's rectangle center to the UI center.
-                    let ui_center = painter.clip_rect().center();
-                    let _from_y = if rect.top() < ui_center.y {
-                        rect.bottom()
-                    } else {
-                        rect.top()
-                    };
-                    /*
-                    painter.line_segment(
-                        [egui::pos2(rect.center().x, from_y), ui_center],
-                        egui::Stroke::new(1.5, egui::Color32::DARK_GRAY),
-                    ); */
-
-                    // --- NEW SUB-LOOP: Draw children of the task ---
-                    // Position children in a half circle away from the UI center.
-                    if !task.children.is_empty() {
-                        let num_children = task.children.len();
-                        // Compute the base angle so that the half-circle faces away from the UI center.
-                        let base_angle = (pos - ui_center).angle();
-                        let arc_span = std::f32::consts::PI; // 180°
-                        let distance_from_parent = 200.0; // Adjust as needed for spacing.
-                        for (j, child) in task.children.iter_mut().enumerate() {
-                            // Calculate the angle for each child along the half circle.
-                            let fraction = if num_children > 1 {
-                                j as f32 / (num_children - 1) as f32
-                            } else {
-                                0.5
-                            };
-                            let child_angle = base_angle - (arc_span / 2.0) + fraction * arc_span;
-                            // Position the child at an offset from the parent's center.
-                            let child_pos = egui::pos2(
-                                pos.x + distance_from_parent * child_angle.cos(),
-                                pos.y + distance_from_parent * child_angle.sin(),
-                            );
-                            let child_rect = egui::Rect::from_center_size(child_pos, radii * 2.0);
-
-                            // Optionally add a click handler for children (similar to parent tasks):
-                            let child_response = ui.interact(
-                                child_rect,
-                                egui::Id::new(child.name.clone()),
-                                egui::Sense::click(),
-                            );
-                            if child_response.clicked() {
-                                self.selected_task_id = Some(child.id.clone());
-                            }
-
-                            // Draw the child rectangle.
-                            painter.rect(
-                                child_rect,
-                                0.0,
-                                egui::Color32::WHITE,
-                                egui::Stroke::new(2.0, egui::Color32::BLACK),
-                            );
-                            // Draw blue outline if the child is selected.
-                            if self.selected_task_id == Some(child.id.clone()) {
-                                painter.rect(
-                                    child_rect,
-                                    0.0,
-                                    egui::Color32::TRANSPARENT,
-                                    egui::Stroke::new(5.0, egui::Color32::BLUE),
-                                );
-                            }
-                            // Draw the child task name.
-                            painter.text(
-                                child_rect.center(),
-                                egui::Align2::CENTER_CENTER,
-                                format!("{}", child.name),
-                                egui::FontId::proportional(16.0),
-                                egui::Color32::BLACK,
-                            );
-                            // --- New line drawing between closest edges ---
-                            // Compute centers.
-                            let parent_center = rect.center();
-                            let child_center = child_rect.center();
-                            // Compute the normalized direction vector from parent to child.
-                            let dir = child_center - parent_center;
-
-                            // Calculate intersection point on parent's rectangle edge.
-                            let parent_half = egui::vec2(rect.width() / 2.0, rect.height() / 2.0);
-                            let scale_parent = f32::max(
-                                parent_half.x
-                                    / if dir.x.abs() < f32::EPSILON {
-                                        f32::INFINITY
-                                    } else {
-                                        dir.x.abs()
-                                    },
-                                parent_half.y
-                                    / if dir.y.abs() < f32::EPSILON {
-                                        f32::INFINITY
-                                    } else {
-                                        dir.y.abs()
-                                    },
-                            );
-                            let parent_edge = parent_center + dir * scale_parent;
-
-                            // Calculate intersection point on child's rectangle edge.
-                            let rev_dir = -dir;
-                            let child_half =
-                                egui::vec2(child_rect.width() / 2.0, child_rect.height() / 2.0);
-                            let scale_child = f32::max(
-                                child_half.x
-                                    / if rev_dir.x.abs() < f32::EPSILON {
-                                        f32::INFINITY
-                                    } else {
-                                        rev_dir.x.abs()
-                                    },
-                                child_half.y
-                                    / if rev_dir.y.abs() < f32::EPSILON {
-                                        f32::INFINITY
-                                    } else {
-                                        rev_dir.y.abs()
-                                    },
-                            );
-                            let child_edge = child_center + rev_dir * scale_child;
-
-                            // Draw a line from the parent's edge to the child's edge.
-                            painter.line_segment(
-                                [parent_edge, child_edge],
-                                egui::Stroke::new(1.5, egui::Color32::DARK_GRAY),
-                            );
-                        }
-                    }
                 }
             }
         });
