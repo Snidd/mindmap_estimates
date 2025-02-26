@@ -1,6 +1,6 @@
 use egui::Pos2;
 
-use crate::{draw_task_with_children, EstimateApp};
+use crate::{draw_task_with_children, task_drawer::draw_task, EstimateApp};
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -182,46 +182,21 @@ impl eframe::App for TemplateApp {
             let tasks = self.estimate_app.get_tasks_mut();
             let num_tasks = tasks.len();
             if num_tasks > 0 {
-                let center = response.rect.center();
-                let radius = response.rect.width().min(response.rect.height()) * 0.3;
-                let radii = egui::vec2(75.0, 25.0);
-
-                for (i, task) in tasks.iter_mut().enumerate() {
-                    let angle = i as f32 / num_tasks as f32 * std::f32::consts::TAU;
-                    let pos = Pos2::new(
-                        center.x + radius * angle.cos(),
-                        center.y + radius * angle.sin(),
-                    );
-
-                    // Adjust position to avoid overlap.
-                    let mut current_radius = radius;
-                    let mut adjusted_pos = pos;
-                    let safe_distance = (75.0_f32.powi(2) + 25.0_f32.powi(2)).sqrt() * 2.0;
-                    while placed_positions
-                        .iter()
-                        .any(|&p| p.distance(adjusted_pos) < safe_distance)
-                    {
-                        current_radius += 10.0;
-                        adjusted_pos = Pos2::new(
-                            center.x + current_radius * angle.cos(),
-                            center.y + current_radius * angle.sin(),
-                        );
-                    }
-                    placed_positions.push(adjusted_pos);
-
-                    // Determine if the task is selected.
-                    let is_selected = self.selected_task_id == Some(task.id.clone());
-
-                    // Draw the task and its children.
-                    draw_task_with_children(
-                        ui,
+                for (index, task) in tasks.iter().enumerate() {
+                    //
+                    let placed_pos = draw_task(
                         &painter,
                         task,
-                        adjusted_pos,
-                        radii,
-                        painter.clip_rect().center(),
-                        is_selected,
+                        response.rect.center(),
+                        response.rect,
+                        false,
+                        response.rect.width().min(response.rect.height()) * 0.3,
+                        &placed_positions,
+                        self.selected_task_id.as_ref().map(|x| x.as_str()),
+                        index,
+                        num_tasks,
                     );
+                    placed_positions.push(placed_pos);
                 }
             }
         });

@@ -48,17 +48,42 @@ impl EstimateApp {
     }
     fn get_example_tasks() -> Vec<Task> {
         let mut tasks = Vec::new();
-        for i in 0..1 {
+        for i in 0..7 {
             tasks.push(Self::get_example_task(i));
         }
         tasks
     }
     fn get_example_task(count: i32) -> Task {
-        Task {
-            children: Vec::new(),
-            estimate: 16,
-            id: format!("task-{}", count),
-            name: format!("Example task {}", count),
+        if count == 0 || count == 3 {
+            Task {
+                children: vec![
+                    Task::new(
+                        format!("task-{}-1", count).as_str(),
+                        format!("Example Task {} 1", count).as_str(),
+                        4,
+                    ),
+                    Task::new(
+                        format!("task-{}-2", count).as_str(),
+                        format!("Example Task {} 2", count).as_str(),
+                        4,
+                    ),
+                    Task::new(
+                        format!("task-{}-3", count).as_str(),
+                        format!("Example Task {} 3", count).as_str(),
+                        4,
+                    ),
+                ],
+                estimate: 16,
+                id: format!("task-{}", count),
+                name: format!("Example task {}", count),
+            }
+        } else {
+            Task {
+                children: Vec::new(),
+                estimate: 16,
+                id: format!("task-{}", count),
+                name: format!("Example task {}", count),
+            }
         }
     }
     pub fn get_tasks_mut(&mut self) -> &mut Vec<Task> {

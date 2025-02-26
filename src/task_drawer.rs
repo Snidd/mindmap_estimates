@@ -2,6 +2,175 @@ use egui::{Color32, FontId, Id, Pos2, Rect, Sense, Stroke, Ui, Vec2};
 
 const ROUNDING: f32 = 5.0;
 
+pub fn draw_task(
+    painter: &egui::Painter,
+    task: &crate::Task,
+    screen_center: Pos2,
+    parent_rect: Rect,
+    is_child: bool,
+    radius: f32,
+    placed_positions: &[Pos2],
+    selected_task_id: Option<&str>,
+    index: usize,
+    max_size: usize,
+) -> Pos2 {
+    let radii = egui::vec2(75.0, 25.0);
+    //let radius = parent_rect.width().min(parent_rect.height()) * 0.3;
+
+    let rect = if is_child {
+        get_child_rect(
+            index,
+            max_size,
+            parent_rect.center(),
+            screen_center,
+            radii,
+            placed_positions,
+        )
+    } else {
+        get_rect(
+            index,
+            max_size,
+            &parent_rect,
+            radius,
+            radii,
+            placed_positions,
+        )
+    };
+
+    painter.rect(
+        rect,
+        ROUNDING,
+        Color32::WHITE,
+        Stroke::new(2.0, Color32::BLACK),
+    );
+    if selected_task_id == Some(&task.name) {
+        painter.rect(
+            rect,
+            ROUNDING,
+            Color32::TRANSPARENT,
+            Stroke::new(5.0, Color32::BLUE),
+        );
+    }
+    painter.text(
+        rect.center(),
+        egui::Align2::CENTER_BOTTOM,
+        format!("{}", task.name),
+        FontId::proportional(16.0),
+        Color32::BLACK,
+    );
+    painter.text(
+        rect.center(),
+        egui::Align2::CENTER_TOP,
+        format!("{}", task.estimate),
+        FontId::proportional(16.0),
+        Color32::BLACK,
+    );
+
+    if !task.children.is_empty() {
+        let mut child_positions = Vec::new();
+        for (j, child) in task.children.iter().enumerate() {
+            let child_pos = draw_task(
+                painter,
+                child,
+                screen_center,
+                rect,
+                true,
+                radius / 1.5,
+                &child_positions,
+                selected_task_id,
+                j,
+                task.children.len(),
+            );
+            child_positions.push(child_pos);
+        }
+    }
+
+    rect.center()
+}
+
+fn adjust_position(
+    angle: f32,
+    radius: f32,
+    position: Pos2,
+    parent: &Rect,
+    placed_positions: &[Pos2],
+) -> Pos2 {
+    // Adjust position to avoid overlap.
+    let mut current_radius = radius;
+    let mut adjusted_pos = position;
+    let safe_distance = (75.0_f32.powi(2) + 25.0_f32.powi(2)).sqrt() * 2.0;
+    while placed_positions
+        .iter()
+        .any(|&p| p.distance(adjusted_pos) < safe_distance)
+    {
+        current_radius += 10.0;
+        adjusted_pos = Pos2::new(
+            parent.center().x + current_radius * angle.cos(),
+            parent.center().y + current_radius * angle.sin(),
+        );
+    }
+    adjusted_pos
+}
+
+fn get_rect(
+    index: usize,
+    count: usize,
+    parent_rect: &Rect,
+    radius: f32,
+    radii: Vec2,
+    placed_positions: &[Pos2],
+) -> Rect {
+    let angle = index as f32 / count as f32 * std::f32::consts::TAU;
+    let position = Pos2::new(
+        parent_rect.center().x + radius * angle.cos(),
+        parent_rect.center().y + radius * angle.sin(),
+    );
+
+    let adjusted_pos = adjust_position(angle, radius, position, &parent_rect, placed_positions);
+
+    // Draw the parent task.
+    let rect = Rect::from_center_size(adjusted_pos, radii * 2.0);
+    rect
+}
+
+fn get_child_rect(
+    child_index: usize,
+    child_count: usize,
+    parent: Pos2,
+    center: Pos2,
+    radii: Vec2,
+    placed_positions: &[Pos2],
+) -> Rect {
+    // Compute the base angle so that the half-circle faces away from the UI center.
+    let base_angle = (parent - center).angle();
+    let arc_span = std::f32::consts::PI; // 180°
+    let distance_from_parent = 200.0; // Adjust as needed.
+
+    // Compute child angle along the half circle.
+    let fraction = if child_count > 1 {
+        child_index as f32 / (child_count - 1) as f32
+    } else {
+        0.5
+    };
+    let child_angle = base_angle - (arc_span / 2.0) + fraction * arc_span;
+    // Position the child relative to the parent's center.
+    let child_pos = Pos2::new(
+        parent.x + distance_from_parent * child_angle.cos(),
+        parent.y + distance_from_parent * child_angle.sin(),
+    );
+
+    let adjusted_pos = adjust_position(
+        child_angle,
+        distance_from_parent,
+        child_pos,
+        &Rect::from_center_size(parent, radii * 2.0),
+        placed_positions,
+    );
+
+    let child_rect = Rect::from_center_size(adjusted_pos, radii * 2.0);
+    child_rect
+}
+
 /// Draws a task and its children.
 ///
 /// Parameters:
@@ -23,11 +192,11 @@ pub fn draw_task_with_children(
 ) {
     // Draw the parent task.
     let rect = Rect::from_center_size(pos, radii * 2.0);
-    let response = ui.interact(rect, Id::new(task.name.clone()), Sense::click());
-    if response.clicked() {
-        // Toggle selection or update state externally.
-        // (For example, you might update a selected_task_id in your app code.)
-    }
+    //let response = ui.interact(rect, Id::new(task.name.clone()), Sense::click());
+    //if response.clicked() {
+    // Toggle selection or update state externally.
+    // (For example, you might update a selected_task_id in your app code.)
+    //}
     painter.rect(
         rect,
         ROUNDING,
