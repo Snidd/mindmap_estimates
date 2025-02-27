@@ -1,8 +1,3 @@
-pub struct Estimate {
-    pub value: i32,
-    pub name: String,
-}
-
 pub struct Task {
     pub id: String,
     pub name: String,
