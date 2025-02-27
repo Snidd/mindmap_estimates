@@ -1,3 +1,4 @@
+#[derive(Debug, Clone)]
 pub struct Task {
     pub id: String,
     pub name: String,
@@ -25,70 +26,10 @@ impl Task {
             counter += 1;
         }
     }
-    pub fn add_child_task(&mut self, name: &str, estimate: i32) {
+    pub fn add_child_task(&mut self, name: &str, estimate: i32) -> String {
         let child = Task::new(&self.get_child_id(), name, estimate);
+        let id = child.id.clone();
         self.children.push(child);
-    }
-}
-
-pub struct EstimateApp {
-    pub tasks: Vec<Task>,
-}
-
-impl EstimateApp {
-    pub fn new() -> Self {
-        Self {
-            tasks: Self::get_example_tasks(),
-        }
-    }
-    fn get_example_tasks() -> Vec<Task> {
-        let mut tasks = Vec::new();
-        for i in 0..7 {
-            tasks.push(Self::get_example_task(i));
-        }
-        tasks
-    }
-    fn get_example_task(count: i32) -> Task {
-        if count == 0 || count == 3 {
-            Task {
-                children: vec![
-                    Task::new(
-                        format!("task-{}-1", count).as_str(),
-                        format!("Example Task {} 1", count).as_str(),
-                        4,
-                    ),
-                    Task::new(
-                        format!("task-{}-2", count).as_str(),
-                        format!("Example Task {} 2", count).as_str(),
-                        4,
-                    ),
-                    Task::new(
-                        format!("task-{}-3", count).as_str(),
-                        format!("Example Task {} 3", count).as_str(),
-                        4,
-                    ),
-                ],
-                estimate: 16,
-                id: format!("task-{}", count),
-                name: format!("Example task {}", count),
-            }
-        } else {
-            Task {
-                children: Vec::new(),
-                estimate: 16,
-                id: format!("task-{}", count),
-                name: format!("Example task {}", count),
-            }
-        }
-    }
-    pub fn get_tasks_mut(&mut self) -> &mut Vec<Task> {
-        &mut self.tasks
-    }
-    pub fn get_tasks(&self) -> &Vec<Task> {
-        &self.tasks
-    }
-    pub fn add_task(&mut self, name: &str) {
-        self.tasks
-            .push(Task::new(&format!("task-{}", self.tasks.len()), name, 0));
+        id
     }
 }

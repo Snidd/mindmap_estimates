@@ -1,7 +1,7 @@
 use egui::{Pos2, Rect};
 
 use crate::{
-    task_drawer::{draw_task, paint_rectangle, RADII},
+    task_drawer::{draw_task, paint_rectangle, TaskPosition, RADII},
     EstimateApp,
 };
 
@@ -20,9 +20,15 @@ pub struct TemplateApp {
 
     selected_task_id: Option<String>,
 
-    show_input_field: bool,
+    input_field_state: InputFieldAction,
     input_field_text: String,
-    input_field_value: String,
+}
+
+#[derive(serde::Deserialize, serde::Serialize, PartialEq, Debug)]
+enum InputFieldAction {
+    Hide,
+    CreateTask,
+    EditEstimate,
 }
 
 impl Default for TemplateApp {
@@ -32,10 +38,9 @@ impl Default for TemplateApp {
             label: "Hello World!".to_owned(),
             value: 2.7,
             estimate_app: EstimateApp::new(),
-            show_input_field: false,
+            input_field_state: InputFieldAction::Hide,
             selected_task_id: None,
-            input_field_text: "Type something here...".to_owned(),
-            input_field_value: "".to_owned(),
+            input_field_text: "".to_owned(),
         }
     }
 }
@@ -65,89 +70,80 @@ impl eframe::App for TemplateApp {
     /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // Listen for the N key press to show the input field.
-        if ctx.input(|i| i.key_pressed(egui::Key::N)) && !self.show_input_field {
-            self.show_input_field = true;
+        if ctx.input(|i| i.key_pressed(egui::Key::N))
+            && self.input_field_state == InputFieldAction::Hide
+        {
+            self.input_field_state = InputFieldAction::CreateTask;
             self.input_field_text = "".to_owned();
         }
-        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) && !self.show_input_field {
+        if ctx.input(|i| i.key_pressed(egui::Key::Escape))
+            && self.input_field_state == InputFieldAction::Hide
+        {
             self.selected_task_id = None;
         }
-        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) && self.show_input_field {
-            self.show_input_field = false;
+        if ctx.input(|i| i.key_pressed(egui::Key::Escape))
+            && self.input_field_state != InputFieldAction::Hide
+        {
+            self.input_field_state = InputFieldAction::Hide;
         }
-        if ctx.input(|i| i.key_pressed(egui::Key::A)) && !self.show_input_field {
-            if self.selected_task_id.is_none() && self.estimate_app.tasks.len() > 0 {
-                self.selected_task_id = Some(self.estimate_app.tasks[0].id.clone());
-            } else {
-                if self.estimate_app.tasks.len() > 1 {
-                    if let Some(selected_task_id) = &self.selected_task_id {
-                        if let Some(current_index) = self
-                            .estimate_app
-                            .tasks
-                            .iter()
-                            .position(|task| task.id == *selected_task_id)
-                        {
-                            let tasks_len = self.estimate_app.tasks.len();
-                            // Cycle through the tasks starting from the next index
-                            for offset in 1..tasks_len {
-                                let next_index = (current_index + offset) % tasks_len;
-                                if self.estimate_app.tasks[next_index].id != *selected_task_id {
-                                    self.selected_task_id =
-                                        Some(self.estimate_app.tasks[next_index].id.clone());
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+        if ctx.input(|i| i.key_pressed(egui::Key::A))
+            && self.input_field_state == InputFieldAction::Hide
+        {
+            let id = self
+                .estimate_app
+                .previous_task_id(self.selected_task_id.as_deref());
+            self.selected_task_id = id;
         }
-        if ctx.input(|i| i.key_pressed(egui::Key::D)) && !self.show_input_field {
-            if self.selected_task_id.is_none() && self.estimate_app.tasks.len() > 0 {
-                self.selected_task_id = Some(self.estimate_app.tasks[0].id.clone());
-            } else {
-                if self.estimate_app.tasks.len() > 1 {
-                    if let Some(selected_task_id) = &self.selected_task_id {
-                        if let Some(current_index) = self
-                            .estimate_app
-                            .tasks
-                            .iter()
-                            .position(|task| task.id == *selected_task_id)
-                        {
-                            let tasks_len = self.estimate_app.tasks.len();
-                            // Cycle through the tasks in reverse starting from the next index
-                            for offset in 1..tasks_len {
-                                let next_index = (current_index + tasks_len - offset) % tasks_len;
-                                if self.estimate_app.tasks[next_index].id != *selected_task_id {
-                                    self.selected_task_id =
-                                        Some(self.estimate_app.tasks[next_index].id.clone());
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+        if ctx.input(|i| i.key_pressed(egui::Key::D))
+            && self.input_field_state == InputFieldAction::Hide
+        {
+            let id = self
+                .estimate_app
+                .next_task_id(self.selected_task_id.as_deref());
+            self.selected_task_id = id;
         }
-        if ctx.input(|i| i.key_pressed(egui::Key::Enter)) && self.show_input_field {
-            self.input_field_value = self.input_field_text.clone();
-            self.show_input_field = false;
 
-            if !self.selected_task_id.is_none() {
-                if let Some(selected_task_id) = &self.selected_task_id {
-                    let selected_task = self
-                        .estimate_app
-                        .tasks
-                        .iter_mut()
-                        .find(|task| task.id == *selected_task_id);
-                    if let Some(selected_task) = selected_task {
-                        selected_task.add_child_task(&self.input_field_value, 0);
-                    } else {
-                        self.estimate_app.add_task(&self.input_field_text);
+        if ctx.input(|i| i.key_pressed(egui::Key::Enter)) {
+            println!("Enter pressed, current state: {:?}", self.input_field_state);
+            match self.input_field_state {
+                InputFieldAction::Hide => {
+                    println!("Enter pressed, showing edit task estimate");
+                    if let Some(id) = &self.selected_task_id {
+                        let current_task = self.estimate_app.find_task(id);
+                        if let Some(task) = current_task {
+                            println!("Task found: {:?}", task);
+                            self.input_field_text = task.estimate.to_string();
+                            self.input_field_state = InputFieldAction::EditEstimate;
+                        }
                     }
                 }
-            } else {
-                self.estimate_app.add_task(&self.input_field_text);
+                InputFieldAction::CreateTask => {
+                    println!("Enter pressed, creating task and hiding input field");
+                    self.input_field_text = self.input_field_text.clone();
+                    self.input_field_state = InputFieldAction::Hide;
+
+                    if let Some(id) = &self.selected_task_id {
+                        let task = self.estimate_app.find_mut_task(id.as_str());
+                        if let Some(task) = task {
+                            let task_id = task.add_child_task(&self.input_field_text, 0);
+                            self.selected_task_id = Some(task_id);
+                        }
+                    } else {
+                        let task_id = self.estimate_app.add_task(&self.input_field_text);
+                        self.selected_task_id = Some(task_id);
+                    }
+                }
+                InputFieldAction::EditEstimate => {
+                    println!("Enter pressed, saving estimate and hiding input field");
+                    if let Some(id) = &self.selected_task_id {
+                        let current_task = self.estimate_app.find_mut_task(id);
+                        if let Some(task) = current_task {
+                            task.estimate = self.input_field_text.parse().unwrap_or(0);
+                            println!("Task saved: {:?}", task);
+                        }
+                    }
+                    self.input_field_state = InputFieldAction::Hide;
+                }
             }
         }
 
@@ -164,6 +160,7 @@ impl eframe::App for TemplateApp {
                         }
                     });
                     ui.add_space(16.0);
+                    ui.button(format!("{:?}", self.input_field_state));
                 }
 
                 egui::widgets::global_theme_preference_buttons(ui);
@@ -181,7 +178,7 @@ impl eframe::App for TemplateApp {
             }
 
             let rect = Rect::from_center_size(response.rect.center(), RADII * 2.0);
-            paint_rectangle(&painter, rect, false, "Root".to_string(), None);
+            paint_rectangle(&painter, rect, false, "Root".to_string(), None, 0);
 
             let mut placed_positions: Vec<Pos2> = Vec::new();
             // Ensure that you get mutable access to tasks (assuming get_tasks_mut() exists).
@@ -193,15 +190,18 @@ impl eframe::App for TemplateApp {
                     let placed_pos = draw_task(
                         &painter,
                         task,
-                        response.rect.center(),
-                        rect,
-                        false,
                         response.rect.width().min(response.rect.height()) * 0.3,
                         &placed_positions,
-                        self.selected_task_id.as_ref().map(|x| x.as_str()),
-                        index,
-                        num_tasks,
-                        1,
+                        self.selected_task_id.as_deref(),
+                        TaskPosition::new(
+                            task.id.clone(),
+                            response.rect.center(),
+                            rect,
+                            false,
+                            index,
+                            num_tasks,
+                            0,
+                        ),
                     );
                     placed_positions.push(placed_pos);
                 }
@@ -209,13 +209,12 @@ impl eframe::App for TemplateApp {
         });
 
         // Optionally, if you want to draw the input field when show_input_field is true:
-        if self.show_input_field {
+        if self.input_field_state != InputFieldAction::Hide {
             egui::Window::new("New Task").show(ctx, |ui| {
                 ui.text_edit_singleline(&mut self.input_field_text)
                     .request_focus();
                 if ui.button("Submit").clicked() {
-                    self.input_field_value = self.input_field_text.clone();
-                    self.show_input_field = false;
+                    self.input_field_state = InputFieldAction::Hide;
                 }
             });
         }
