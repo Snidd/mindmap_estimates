@@ -1,6 +1,9 @@
-use egui::Pos2;
+use egui::{Pos2, Rect};
 
-use crate::{draw_task_with_children, task_drawer::draw_task, EstimateApp};
+use crate::{
+    task_drawer::{draw_task, paint_rectangle, RADII},
+    EstimateApp,
+};
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -177,6 +180,9 @@ impl eframe::App for TemplateApp {
                 self.selected_task_id = None;
             }
 
+            let rect = Rect::from_center_size(response.rect.center(), RADII * 2.0);
+            paint_rectangle(&painter, rect, false, "Root".to_string(), None);
+
             let mut placed_positions: Vec<Pos2> = Vec::new();
             // Ensure that you get mutable access to tasks (assuming get_tasks_mut() exists).
             let tasks = self.estimate_app.get_tasks_mut();
@@ -188,13 +194,14 @@ impl eframe::App for TemplateApp {
                         &painter,
                         task,
                         response.rect.center(),
-                        response.rect,
+                        rect,
                         false,
                         response.rect.width().min(response.rect.height()) * 0.3,
                         &placed_positions,
                         self.selected_task_id.as_ref().map(|x| x.as_str()),
                         index,
                         num_tasks,
+                        1,
                     );
                     placed_positions.push(placed_pos);
                 }
