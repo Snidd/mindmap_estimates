@@ -101,11 +101,11 @@ pub fn draw_task(
 
     if !task.children.is_empty() {
         let mut child_positions = Vec::new();
-        for (j, child) in task.children.iter().enumerate() {
+        for (j, child_task) in task.children.iter().enumerate() {
             let task_position_child = task_position.new_child(rect, j, task.children.len());
             let (child_pos, child_sum) = draw_task(
                 painter,
-                child,
+                child_task,
                 radius / 1.5,
                 &child_positions,
                 selected_task_id,
