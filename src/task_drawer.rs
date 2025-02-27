@@ -1,4 +1,4 @@
-use egui::{Color32, FontId, Pos2, Rect, Stroke, Vec2};
+use egui::{Align2, Color32, FontId, Pos2, Rect, Stroke, Vec2};
 
 pub const ROUNDING: f32 = 5.0;
 pub const RADII: Vec2 = Vec2::new(75.0, 25.0);
@@ -54,7 +54,7 @@ pub fn draw_task(
     placed_positions: &[Pos2],
     selected_task_id: Option<&str>,
     task_position: TaskPosition,
-) -> Pos2 {
+) -> (Pos2, i32) {
     let radii = RADII;
     //let radius = parent_rect.width().min(parent_rect.height()) * 0.3;
     let (screen_center, parent_rect, is_child, index, max_size, depth_level) = (
@@ -97,11 +97,13 @@ pub fn draw_task(
 
     draw_line(painter, parent_rect, rect);
 
+    let mut child_sums = 0;
+
     if !task.children.is_empty() {
         let mut child_positions = Vec::new();
         for (j, child) in task.children.iter().enumerate() {
             let task_position_child = task_position.new_child(rect, j, task.children.len());
-            let child_pos = draw_task(
+            let (child_pos, child_sum) = draw_task(
                 painter,
                 child,
                 radius / 1.5,
@@ -110,10 +112,14 @@ pub fn draw_task(
                 task_position_child,
             );
             child_positions.push(child_pos);
+            child_sums += child_sum;
         }
+        draw_sum(painter, child_sums, rect);
     }
 
-    rect.center()
+    child_sums += task.estimate;
+
+    (rect.center(), child_sums)
 }
 
 pub fn draw_line(painter: &egui::Painter, from_rect: Rect, to_rect: Rect) {
@@ -209,6 +215,27 @@ pub fn draw_line(painter: &egui::Painter, from_rect: Rect, to_rect: Rect) {
             Stroke::new(1.5, Color32::DARK_GRAY),
         );
     }
+}
+
+fn draw_sum(painter: &egui::Painter, sum: i32, parent_rect: Rect) {
+    let mut position = parent_rect.center();
+    position.x -= parent_rect.width() / 2.0;
+    position.y -= parent_rect.height() / 2.0;
+
+    //painter.circle_stroke(position, 20.0, Stroke::new(1.5, Color32::KHAKI));
+    painter.circle(
+        position,
+        20.0,
+        Color32::LIGHT_BLUE,
+        Stroke::new(1.5, Color32::KHAKI),
+    );
+    painter.text(
+        position,
+        Align2::CENTER_CENTER,
+        sum.to_string(),
+        FontId::proportional(16.0),
+        Color32::BLACK,
+    );
 }
 
 pub fn paint_rectangle(

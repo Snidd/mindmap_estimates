@@ -160,7 +160,7 @@ impl eframe::App for TemplateApp {
                         }
                     });
                     ui.add_space(16.0);
-                    ui.button(format!("{:?}", self.input_field_state));
+                    let _ = ui.button(format!("{:?}", self.input_field_state));
                 }
 
                 egui::widgets::global_theme_preference_buttons(ui);
@@ -187,7 +187,7 @@ impl eframe::App for TemplateApp {
             if num_tasks > 0 {
                 for (index, task) in tasks.iter().enumerate() {
                     //
-                    let placed_pos = draw_task(
+                    let (placed_pos, _) = draw_task(
                         &painter,
                         task,
                         response.rect.width().min(response.rect.height()) * 0.3,
