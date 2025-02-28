@@ -9,18 +9,15 @@ use crate::{
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
 pub struct TemplateApp {
-    // Example stuff:
-    label: String,
-
-    #[serde(skip)] // This how you opt-out of serialization of a field
-    value: f32,
-
-    #[serde(skip)]
     estimate_app: EstimateApp,
 
+    #[serde(skip)]
     selected_task_id: Option<String>,
 
+    #[serde(skip)]
     input_field_state: InputFieldAction,
+
+    #[serde(skip)]
     input_field_text: String,
 }
 
@@ -34,9 +31,6 @@ enum InputFieldAction {
 impl Default for TemplateApp {
     fn default() -> Self {
         Self {
-            // Example stuff:
-            label: "Hello World!".to_owned(),
-            value: 2.7,
             estimate_app: EstimateApp::new(),
             input_field_state: InputFieldAction::Hide,
             selected_task_id: None,
@@ -187,8 +181,9 @@ impl eframe::App for TemplateApp {
             if num_tasks > 0 {
                 for (index, task) in tasks.iter().enumerate() {
                     //
-                    let (placed_pos, _) = draw_task(
+                    let draw_task_response = draw_task(
                         &painter,
+                        ui,
                         task,
                         response.rect.width().min(response.rect.height()) * 0.3,
                         &placed_positions,
@@ -203,7 +198,10 @@ impl eframe::App for TemplateApp {
                             0,
                         ),
                     );
-                    placed_positions.push(placed_pos);
+                    placed_positions.push(draw_task_response.position);
+                    if let Some(task_id) = draw_task_response.clicked_task_id {
+                        self.selected_task_id = Some(task_id);
+                    }
                 }
             }
         });

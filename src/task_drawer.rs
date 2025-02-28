@@ -47,14 +47,30 @@ impl TaskPosition {
     }
 }
 
+pub struct DrawTaskResponse {
+    pub position: Pos2,
+    pub sum: i32,
+    pub clicked_task_id: Option<String>,
+}
+impl DrawTaskResponse {
+    pub fn new(position: Pos2, sum: i32, clicked_task_id: Option<String>) -> Self {
+        Self {
+            position,
+            sum,
+            clicked_task_id,
+        }
+    }
+}
+
 pub fn draw_task(
     painter: &egui::Painter,
+    ui: &mut egui::Ui,
     task: &crate::Task,
     radius: f32,
     placed_positions: &[Pos2],
     selected_task_id: Option<&str>,
     task_position: TaskPosition,
-) -> (Pos2, i32) {
+) -> DrawTaskResponse {
     let radii = RADII;
     //let radius = parent_rect.width().min(parent_rect.height()) * 0.3;
     let (screen_center, parent_rect, is_child, index, max_size, depth_level) = (
@@ -95,6 +111,13 @@ pub fn draw_task(
         depth_level,
     );
 
+    let is_clicked = add_clickable_task(ui, rect, task.id.clone());
+    let mut clicked_task_id = if is_clicked {
+        Some(task.id.clone())
+    } else {
+        None
+    };
+
     draw_line(painter, parent_rect, rect);
 
     let mut child_sums = 0;
@@ -103,23 +126,28 @@ pub fn draw_task(
         let mut child_positions = Vec::new();
         for (j, child_task) in task.children.iter().enumerate() {
             let task_position_child = task_position.new_child(rect, j, task.children.len());
-            let (child_pos, child_sum) = draw_task(
+            let draw_task_response = draw_task(
                 painter,
+                ui,
                 child_task,
                 radius / 1.5,
                 &child_positions,
                 selected_task_id,
                 task_position_child,
             );
+            let (child_pos, child_sum) = (draw_task_response.position, draw_task_response.sum);
             child_positions.push(child_pos);
             child_sums += child_sum;
+            if draw_task_response.clicked_task_id.is_some() {
+                clicked_task_id = draw_task_response.clicked_task_id;
+            }
         }
         draw_sum(painter, child_sums, rect);
     }
 
     child_sums += task.estimate;
 
-    (rect.center(), child_sums)
+    DrawTaskResponse::new(rect.center(), child_sums, clicked_task_id)
 }
 
 pub fn draw_line(painter: &egui::Painter, from_rect: Rect, to_rect: Rect) {
@@ -284,6 +312,11 @@ pub fn paint_rectangle(
             Color32::BLACK,
         );
     }
+}
+
+fn add_clickable_task(ui: &mut egui::Ui, rect: Rect, task_id: String) -> bool {
+    let response = ui.interact(rect, egui::Id::new(task_id), egui::Sense::click());
+    response.clicked()
 }
 
 fn adjust_position(

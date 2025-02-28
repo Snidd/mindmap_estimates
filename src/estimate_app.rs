@@ -1,12 +1,15 @@
 use crate::Task;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Deserialize, serde::Serialize)]
 pub struct EstimateApp {
     pub tasks: Vec<Task>,
 }
 
 impl EstimateApp {
     pub fn new() -> Self {
+        Self { tasks: Vec::new() }
+    }
+    pub fn new_example_app() -> Self {
         Self {
             tasks: Self::get_example_tasks(),
         }
